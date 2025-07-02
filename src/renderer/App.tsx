@@ -1,5 +1,7 @@
 import { MemoryRouter as Router, Routes, Route } from 'react-router-dom';
+import Performance from './Performance';
 import icon from '../../assets/icon.svg';
+import './tailwind.css';
 import './App.css';
 
 function Hello() {
@@ -35,6 +37,7 @@ function Hello() {
           </button>
         </a>
       </div>
+      <Performance />
     </div>
   );
 }

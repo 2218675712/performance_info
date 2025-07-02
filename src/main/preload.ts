@@ -2,7 +2,7 @@
 /* eslint no-unused-vars: off */
 import { contextBridge, ipcRenderer, IpcRendererEvent } from 'electron';
 
-export type Channels = 'ipc-example';
+export type Channels = 'ipc-example' | 'get-system-info' | 'system-info';
 
 const electronHandler = {
   ipcRenderer: {
@@ -21,6 +21,12 @@ const electronHandler = {
     once(channel: Channels, func: (...args: unknown[]) => void) {
       ipcRenderer.once(channel, (_event, ...args) => func(...args));
     },
+  },
+  systemInfo: {
+    getCpuInfo: () => ipcRenderer.invoke('get-system-info', 'cpu'),
+    getGraphicsInfo: () => ipcRenderer.invoke('get-system-info', 'graphics'),
+    getMemInfo: () => ipcRenderer.invoke('get-system-info', 'mem'),
+    getNetworkInfo: () => ipcRenderer.invoke('get-system-info', 'network'),
   },
 };
 

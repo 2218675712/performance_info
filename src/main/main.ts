@@ -12,6 +12,7 @@ import path from 'path';
 import { app, BrowserWindow, shell, ipcMain } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import log from 'electron-log';
+import si from 'systeminformation';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 
@@ -29,6 +30,27 @@ ipcMain.on('ipc-example', async (event, arg) => {
   const msgTemplate = (pingPong: string) => `IPC test: ${pingPong}`;
   console.log(msgTemplate(arg));
   event.reply('ipc-example', msgTemplate('pong'));
+});
+
+// 处理系统信息请求
+ipcMain.handle('get-system-info', async (_event, type) => {
+  try {
+    switch (type) {
+      case 'cpu':
+        return await si.cpu();
+      case 'graphics':
+        return await si.graphics();
+      case 'mem':
+        return await si.mem();
+      case 'network':
+        return await si.networkStats();
+      default:
+        throw new Error(`未知的系统信息类型: ${type}`);
+    }
+  } catch (error) {
+    console.error('获取系统信息时出错:', error);
+    throw error;
+  }
 });
 
 if (process.env.NODE_ENV === 'production') {
