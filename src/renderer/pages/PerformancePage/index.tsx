@@ -1,25 +1,15 @@
 import './PerformancePage.css';
 import 'tailwindcss/tailwind.css';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import type { Systeminformation } from 'systeminformation';
+
+import type { ElectronHandler } from '../../../main/preload';
 
 // 从preload.d.ts中获取类型
 declare global {
   interface Window {
-    electron: {
-      ipcRenderer: {
-        sendMessage: (channel: string, ...args: unknown[]) => void;
-        on: (channel: string, func: (...args: unknown[]) => void) => () => void;
-        once: (channel: string, func: (...args: unknown[]) => void) => void;
-      };
-      systemInfo: {
-        getCpuInfo: () => Promise<Systeminformation.CpuData>;
-        getGraphicsInfo: () => Promise<Systeminformation.GraphicsData>;
-        getMemInfo: () => Promise<Systeminformation.MemData>;
-        getNetworkInfo: () => Promise<Systeminformation.NetworkStatsData[]>;
-      };
-    };
+    electron: ElectronHandler;
   }
 }
 
@@ -37,6 +27,11 @@ function Performance() {
     Systeminformation.NetworkStatsData[] | null
   >(null);
   const [cpuUsage, setCpuUsage] = useState<number>(0);
+  const [cpuSpeed, setCpuSpeed] = useState<number>(0);
+  const [networkSpeed, setNetworkSpeed] = useState({ rxSec: 0, txSec: 0 });
+  const lastNetworkInfoRef = useRef<
+    Systeminformation.NetworkStatsData[] | null
+  >(null);
 
   useEffect(() => {
     const getStaticInfo = async () => {
@@ -55,9 +50,29 @@ function Performance() {
         const mem = await window.electron.systemInfo.getMemInfo();
         const network = await window.electron.systemInfo.getNetworkInfo();
         const load = await window.electron.systemInfo.getCpuCurrentLoad();
+        const speed = await window.electron.systemInfo.getCpuSpeed();
+
+        if (lastNetworkInfoRef.current) {
+          const rxSec = network.reduce((acc, net, i) => {
+            return (
+              acc +
+              (net.rx_bytes - (lastNetworkInfoRef.current?.[i]?.rx_bytes || 0))
+            );
+          }, 0);
+          const txSec = network.reduce((acc, net, i) => {
+            return (
+              acc +
+              (net.tx_bytes - (lastNetworkInfoRef.current?.[i]?.tx_bytes || 0))
+            );
+          }, 0);
+          setNetworkSpeed({ rxSec, txSec });
+        }
+
         setMemInfo(mem);
         setNetworkInfo(network);
         setCpuUsage(load.currentLoad);
+        setCpuSpeed(speed.avg);
+        lastNetworkInfoRef.current = network;
       } catch (error) {
         console.error('获取动态系统信息时出错:', error);
       }
@@ -72,41 +87,45 @@ function Performance() {
   }, []);
 
   return (
-    <div className="p-6 bg-gray-100 text-gray-800 min-h-screen font-sans">
-      <h2 className="text-3xl font-bold mb-8 text-center text-gray-900">
+    <div className="p-6 bg-black text-gray-300 min-h-screen font-sans tech-background">
+      <h2 className="text-3xl font-bold mb-8 text-center text-cyan-400 glow">
         系统性能监控
       </h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* CPU Card */}
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h3 className="text-xl font-bold mb-4 text-gray-800">CPU</h3>
+        <div className="bg-gray-900 bg-opacity-75 p-6 rounded-lg shadow-lg border border-cyan-700">
+          <h3 className="text-xl font-bold mb-4 text-cyan-400">CPU</h3>
           {cpuInfo ? (
             <div className="space-y-2 text-base">
               <p>
-                <span className="font-semibold text-gray-600">型号:</span>{' '}
+                <span className="font-semibold text-cyan-300">型号:</span>{' '}
                 {cpuInfo.manufacturer} {cpuInfo.brand}
               </p>
               <p>
-                <span className="font-semibold text-gray-600">速度:</span>{' '}
+                <span className="font-semibold text-cyan-300">速度:</span>{' '}
                 {cpuInfo.speed} GHz
               </p>
               <p>
-                <span className="font-semibold text-gray-600">核心数:</span>{' '}
+                <span className="font-semibold text-cyan-300">当前频率:</span>{' '}
+                {cpuSpeed.toFixed(2)} GHz
+              </p>
+              <p>
+                <span className="font-semibold text-cyan-300">核心数:</span>{' '}
                 {cpuInfo.cores}
               </p>
               <p>
-                <span className="font-semibold text-gray-600">使用率:</span>{' '}
+                <span className="font-semibold text-cyan-300">使用率:</span>{' '}
                 {cpuUsage.toFixed(2)}%
               </p>
             </div>
           ) : (
-            <p className="text-gray-500">无法加载CPU信息。</p>
+            <p className="text-gray-400">无法加载CPU信息。</p>
           )}
         </div>
 
         {/* GPU Card */}
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h3 className="text-xl font-bold mb-4 text-gray-800">GPU</h3>
+        <div className="bg-gray-900 bg-opacity-75 p-6 rounded-lg shadow-lg border border-cyan-700">
+          <h3 className="text-xl font-bold mb-4 text-cyan-400">GPU</h3>
           {gpuInfo ? (
             gpuInfo.controllers.map((controller) => (
               <div
@@ -114,69 +133,81 @@ function Performance() {
                 className="space-y-2 text-base"
               >
                 <p>
-                  <span className="font-semibold text-gray-600">型号:</span>{' '}
+                  <span className="font-semibold text-cyan-300">型号:</span>{' '}
                   {controller.model}
                 </p>
                 <p>
-                  <span className="font-semibold text-gray-600">厂商:</span>{' '}
+                  <span className="font-semibold text-cyan-300">厂商:</span>{' '}
                   {controller.vendor}
                 </p>
                 <p>
-                  <span className="font-semibold text-gray-600">显存:</span>{' '}
+                  <span className="font-semibold text-cyan-300">显存:</span>{' '}
                   {controller.vram} MB
                 </p>
               </div>
             ))
           ) : (
-            <p className="text-gray-500">无法加载GPU信息。</p>
+            <p className="text-gray-400">无法加载GPU信息。</p>
           )}
         </div>
 
         {/* Memory Card */}
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h3 className="text-xl font-bold mb-4 text-gray-800">内存</h3>
+        <div className="bg-gray-900 bg-opacity-75 p-6 rounded-lg shadow-lg border border-cyan-700">
+          <h3 className="text-xl font-bold mb-4 text-cyan-400">内存</h3>
           {memInfo ? (
             <div className="space-y-2 text-base">
               <p>
-                <span className="font-semibold text-gray-600">总计:</span>{' '}
+                <span className="font-semibold text-cyan-300">总计:</span>{' '}
                 {(memInfo.total / 1024 / 1024 / 1024).toFixed(2)} GB
               </p>
               <p>
-                <span className="font-semibold text-gray-600">已用:</span>{' '}
+                <span className="font-semibold text-cyan-300">已用:</span>{' '}
                 {(memInfo.used / 1024 / 1024 / 1024).toFixed(2)} GB
               </p>
               <p>
-                <span className="font-semibold text-gray-600">空闲:</span>{' '}
+                <span className="font-semibold text-cyan-300">空闲:</span>{' '}
                 {(memInfo.free / 1024 / 1024 / 1024).toFixed(2)} GB
               </p>
             </div>
           ) : (
-            <p className="text-gray-500">无法加载内存信息。</p>
+            <p className="text-gray-400">无法加载内存信息。</p>
           )}
         </div>
 
         {/* Network Card */}
-        <div className="bg-white p-6 rounded-lg shadow-md">
-          <h3 className="text-xl font-bold mb-4 text-gray-800">网络</h3>
+        <div className="bg-gray-900 bg-opacity-75 p-6 rounded-lg shadow-lg border border-cyan-700">
+          <h3 className="text-xl font-bold mb-4 text-cyan-400">网络</h3>
           {networkInfo ? (
-            networkInfo.map((net) => (
-              <div key={net.iface} className="space-y-2 text-base">
+            <>
+              {networkInfo.map((net) => (
+                <div key={net.iface} className="space-y-2 text-base">
+                  <p>
+                    <span className="font-semibold text-cyan-300">接口:</span>{' '}
+                    {net.iface}
+                  </p>
+                  <p>
+                    <span className="font-semibold text-cyan-300">总接收:</span>{' '}
+                    {(net.rx_bytes / 1024 / 1024).toFixed(2)} MB
+                  </p>
+                  <p>
+                    <span className="font-semibold text-cyan-300">总发送:</span>{' '}
+                    {(net.tx_bytes / 1024 / 1024).toFixed(2)} MB
+                  </p>
+                </div>
+              ))}
+              <div className="space-y-2 text-base mt-4">
                 <p>
-                  <span className="font-semibold text-gray-600">接口:</span>{' '}
-                  {net.iface}
+                  <span className="font-semibold text-cyan-300">下行速度:</span>{' '}
+                  {(networkSpeed.rxSec / 1024).toFixed(2)} KB/s
                 </p>
                 <p>
-                  <span className="font-semibold text-gray-600">接收:</span>{' '}
-                  {(net.rx_bytes / 1024 / 1024).toFixed(2)} MB
-                </p>
-                <p>
-                  <span className="font-semibold text-gray-600">发送:</span>{' '}
-                  {(net.tx_bytes / 1024 / 1024).toFixed(2)} MB
+                  <span className="font-semibold text-cyan-300">上行速度:</span>{' '}
+                  {(networkSpeed.txSec / 1024).toFixed(2)} KB/s
                 </p>
               </div>
-            ))
+            </>
           ) : (
-            <p className="text-gray-500">无法加载网络信息。</p>
+            <p className="text-gray-400">无法加载网络信息。</p>
           )}
         </div>
       </div>

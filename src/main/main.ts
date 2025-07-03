@@ -62,6 +62,15 @@ ipcMain.handle('get-cpu-current-load', async () => {
   }
 });
 
+ipcMain.handle('get-cpu-speed', async () => {
+  try {
+    return await si.cpuCurrentSpeed();
+  } catch (error) {
+    console.error('获取CPU速度时出错:', error);
+    throw error;
+  }
+});
+
 if (process.env.NODE_ENV === 'production') {
   const sourceMapSupport = require('source-map-support');
   sourceMapSupport.install();

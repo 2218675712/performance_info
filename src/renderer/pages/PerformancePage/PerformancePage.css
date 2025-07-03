@@ -17,3 +17,15 @@
 .animate-pulse {
   animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+.tech-background {
+  background-color: #000;
+  background-image:
+    linear-gradient(rgba(0, 150, 255, 0.2) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 150, 255, 0.2) 1px, transparent 1px) !important;
+  background-size: 20px 20px;
+}
+
+.glow {
+  text-shadow: 0 0 5px #00bfff, 0 0 10px #00bfff, 0 0 15px #00bfff;
+}
