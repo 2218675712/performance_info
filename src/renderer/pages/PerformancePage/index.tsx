@@ -1,5 +1,5 @@
 import './PerformancePage.css';
-import "tailwindcss/tailwind.css";
+import 'tailwindcss/tailwind.css';
 
 import React, { useEffect, useState } from 'react';
 import type { Systeminformation } from 'systeminformation';
@@ -39,26 +39,34 @@ function Performance() {
   const [cpuUsage, setCpuUsage] = useState<number>(0);
 
   useEffect(() => {
-    const getSystemInfo = async () => {
+    const getStaticInfo = async () => {
       try {
         const cpu = await window.electron.systemInfo.getCpuInfo();
         const graphics = await window.electron.systemInfo.getGraphicsInfo();
-        const mem = await window.electron.systemInfo.getMemInfo();
-        const network = await window.electron.systemInfo.getNetworkInfo();
-
         setCpuInfo(cpu);
         setGpuInfo(graphics);
-        setMemInfo(mem);
-        setNetworkInfo(network);
-        setCpuUsage(cpu.speed); // 示例值，实际应使用currentLoad()
       } catch (error) {
-        console.error('获取系统信息时出错:', error);
+        console.error('获取静态系统信息时出错:', error);
       }
     };
 
-    getSystemInfo();
+    const getDynamicInfo = async () => {
+      try {
+        const mem = await window.electron.systemInfo.getMemInfo();
+        const network = await window.electron.systemInfo.getNetworkInfo();
+        const load = await window.electron.systemInfo.getCpuCurrentLoad();
+        setMemInfo(mem);
+        setNetworkInfo(network);
+        setCpuUsage(load.currentLoad);
+      } catch (error) {
+        console.error('获取动态系统信息时出错:', error);
+      }
+    };
 
-    const interval = setInterval(getSystemInfo, 1000);
+    getStaticInfo();
+    getDynamicInfo();
+
+    const interval = setInterval(getDynamicInfo, 1000);
 
     return () => clearInterval(interval);
   }, []);

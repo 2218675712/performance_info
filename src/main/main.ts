@@ -53,6 +53,15 @@ ipcMain.handle('get-system-info', async (_event, type) => {
   }
 });
 
+ipcMain.handle('get-cpu-current-load', async () => {
+  try {
+    return await si.currentLoad();
+  } catch (error) {
+    console.error('获取CPU负载时出错:', error);
+    throw error;
+  }
+});
+
 if (process.env.NODE_ENV === 'production') {
   const sourceMapSupport = require('source-map-support');
   sourceMapSupport.install();

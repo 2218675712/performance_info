@@ -27,6 +27,7 @@ const electronHandler = {
     getGraphicsInfo: () => ipcRenderer.invoke('get-system-info', 'graphics'),
     getMemInfo: () => ipcRenderer.invoke('get-system-info', 'mem'),
     getNetworkInfo: () => ipcRenderer.invoke('get-system-info', 'network'),
+    getCpuCurrentLoad: () => ipcRenderer.invoke('get-cpu-current-load'),
   },
 };
 
