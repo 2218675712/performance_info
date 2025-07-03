@@ -1,12 +1,17 @@
-import { MemoryRouter as Router, Routes, Route, useNavigate } from 'react-router-dom';
+import {
+  HashRouter as Router,
+  Routes,
+  Route,
+  useNavigate,
+} from 'react-router-dom';
 import PerformancePage from './pages/PerformancePage';
-import icon from '../../assets/icon.svg';
 import './App.css';
 
 function Hello() {
   const navigate = useNavigate();
   return (
-    <div>
+    <div className="main-container">
+      <h1 className="title">性能监控平台</h1>
       <div className="Hello">
         <button type="button" onClick={() => navigate('/performance')}>
           查看性能
