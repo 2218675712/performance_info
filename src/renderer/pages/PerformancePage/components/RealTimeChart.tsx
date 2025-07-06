@@ -1,6 +1,13 @@
 import React from 'react';
-import ReactECharts from 'echarts-for-react';
-import _ from 'lodash';
+import {
+  ResponsiveContainer,
+  AreaChart,
+  Area,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from 'recharts';
 
 interface RealTimeChartProps {
   data: number[];
@@ -8,73 +15,45 @@ interface RealTimeChartProps {
 }
 
 function RealTimeChart({ data, color }: RealTimeChartProps) {
-  const getOption = () => {
-    return {
-      tooltip: {
-        trigger: 'axis',
-        formatter: ([{ value }]: [{ value: number }]) => {
-          return `${value.toFixed(2)}%`;
-        },
-      },
-      xAxis: {
-        type: 'category',
-        data: _.range(data.length),
-        show: false,
-      },
-      yAxis: {
-        type: 'value',
-        min: 0,
-        max: 100,
-        axisLabel: {
-          formatter: (value: number) => {
-            if (value === 0) return '0%';
-            if (value === 100) return '100%';
-            return '';
-          },
-          color: '#888',
-        },
-        splitLine: {
-          lineStyle: {
-            color: '#333',
-          },
-        },
-        axisLine: {
-          show: false,
-        },
-        axisTick: {
-          show: false,
-        },
-      },
-      series: [
-        {
-          data,
-          type: 'line',
-          smooth: true,
-          showSymbol: false,
-          lineStyle: {
-            color,
-            width: 1,
-          },
-          areaStyle: {
-            color,
-            opacity: 0.3,
-          },
-        },
-      ],
-      grid: {
-        left: '40px',
-        right: '10px',
-        top: '10px',
-        bottom: '20px',
-      },
-    };
-  };
+  const chartData = data.map((value, index) => ({
+    name: index.toString(),
+    value,
+  }));
 
   return (
-    <ReactECharts
-      option={getOption()}
-      style={{ height: '120px', width: '100%' }}
-    />
+    <ResponsiveContainer width="100%" height={100}>
+      <AreaChart
+        data={chartData}
+        margin={{ top: 5, right: 20, left: -10, bottom: 0 }}
+      >
+        <defs>
+          <linearGradient id={`colorUv-${color}`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor={color} stopOpacity={0.8} />
+            <stop offset="95%" stopColor={color} stopOpacity={0} />
+          </linearGradient>
+        </defs>
+        <XAxis dataKey="name" tick={false} axisLine={false} />
+        <YAxis tick={{ fill: '#9ca3af' }} />
+        <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
+        <Tooltip
+          contentStyle={{
+            backgroundColor: 'rgba(31, 41, 55, 0.8)',
+            borderColor: '#4b5563',
+            color: '#d1d5db',
+          }}
+          itemStyle={{ color: '#d1d5db' }}
+          labelStyle={{ display: 'none' }}
+        />
+        <Area
+          type="monotone"
+          dataKey="value"
+          stroke={color}
+          fillOpacity={1}
+          fill={`url(#colorUv-${color})`}
+          isAnimationActive={false}
+        />
+      </AreaChart>
+    </ResponsiveContainer>
   );
 }
 
