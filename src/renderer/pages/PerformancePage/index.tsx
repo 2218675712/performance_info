@@ -1,12 +1,12 @@
 import './PerformancePage.css';
 import 'tailwindcss/tailwind.css';
 
-import React, { useEffect, useState, useRef } from 'react';
-import type { Systeminformation } from 'systeminformation';
-import _ from 'lodash';
+import React from 'react';
 
 import type { ElectronHandler } from '../../../main/preload';
 import RealTimeChart from './components/RealTimeChart';
+import useSystemInfo from './hooks/useSystemInfo';
+import usePerformanceRecorder from './hooks/usePerformanceRecorder';
 
 // 从preload.d.ts中获取类型
 declare global {
@@ -42,221 +42,37 @@ function renderCardContent<T>(
 }
 
 function Performance() {
-  const [isLoading, setIsLoading] = useState(true);
-  const [cpuInfo, setCpuInfo] = useState<Systeminformation.CpuData | null>(
-    null,
+  const {
+    isLoading,
+    cpuInfo,
+    gpuInfo,
+    memInfo,
+    networkInfo,
+    cpuUsage,
+    memUsage,
+    gpuUsages,
+    cpuUsageHistory,
+    gpuUsageHistories,
+    memUsageHistory,
+    networkRxSpeedHistory,
+    networkTxSpeedHistory,
+    cpuSpeed,
+    networkSpeed,
+  } = useSystemInfo();
+
+  const {
+    isRecording,
+    performanceData,
+    startRecording,
+    stopRecording,
+    handleExport,
+  } = usePerformanceRecorder(
+    cpuInfo,
+    gpuUsages,
+    memUsage,
+    cpuUsage,
+    networkSpeed,
   );
-  const [gpuInfo, setGpuInfo] = useState<Systeminformation.GraphicsData | null>(
-    null,
-  );
-  const [memInfo, setMemInfo] = useState<Systeminformation.MemData | null>(
-    null,
-  );
-  const [networkInfo, setNetworkInfo] = useState<
-    Systeminformation.NetworkStatsData[] | null
-  >(null);
-  const [cpuUsage, setCpuUsage] = useState<number>(0);
-  const [memUsage, setMemUsage] = useState<number>(0);
-  const [gpuUsages, setGpuUsages] = useState<{ [key: string]: number }>({});
-  const [cpuUsageHistory, setCpuUsageHistory] = useState<number[]>([]);
-  const [gpuUsageHistories, setGpuUsageHistories] = useState<{
-    [key: string]: number[];
-  }>({});
-  const [memUsageHistory, setMemUsageHistory] = useState<number[]>([]);
-  const [networkRxSpeedHistory, setNetworkRxSpeedHistory] = useState<number[]>(
-    [],
-  );
-  const [networkTxSpeedHistory, setNetworkTxSpeedHistory] = useState<number[]>(
-    [],
-  );
-  const [cpuSpeed, setCpuSpeed] = useState<number>(0);
-  const [networkSpeed, setNetworkSpeed] = useState({ rxSec: 0, txSec: 0 });
-  const lastNetworkInfoRef = useRef<
-    Systeminformation.NetworkStatsData[] | null
-  >(null);
-  const [isRecording, setIsRecording] = useState(false);
-  const [performanceData, setPerformanceData] = useState<any[]>([]);
-  const [recordingStartTime, setRecordingStartTime] = useState<Date | null>(null);
-
-  const formatNetworkSpeed = (speedInMB: number) => {
-    if (speedInMB < 1) {
-      return `${(speedInMB * 1024).toFixed(2)} KB/s`;
-    }
-    return `${speedInMB.toFixed(2)} MB/s`;
-  };
-
-  const handleExport = () => {
-    const formatTime = (date: Date) => {
-      return `${date.getFullYear()}-${(date.getMonth() + 1)
-        .toString()
-        .padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')} ${date
-        .getHours()
-        .toString()
-        .padStart(2, '0')}-${date.getMinutes().toString().padStart(2, '0')}-${date
-        .getSeconds()
-        .toString()
-        .padStart(2, '0')}`;
-    };
-
-    const startTime = recordingStartTime ? formatTime(recordingStartTime) : '';
-    const endTime = formatTime(new Date());
-    const deviceName = cpuInfo
-      ? `${cpuInfo.manufacturer} ${cpuInfo.brand}`
-      : 'UnknownDevice';
-    const fileName = `${startTime}-${endTime}-${deviceName}-performance.csv`;
-
-    const csvContent = [
-      Object.keys(performanceData[0]).join(','),
-      ...performanceData.map((row) => {
-        const formattedRow = {
-          ...row,
-          timestamp: formatTime(new Date(row.timestamp)),
-          networkRxSpeed: formatNetworkSpeed(row.networkRxSpeed),
-          networkTxSpeed: formatNetworkSpeed(row.networkTxSpeed),
-        };
-        return Object.values(formattedRow)
-          .map((value) =>
-            typeof value === 'number' ? value.toFixed(2) : value,
-          )
-          .join(',');
-      }),
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', fileName);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  useEffect(() => {
-    const getStaticInfo = async () => {
-      try {
-        const cpu = await window.electron.systemInfo.getCpuInfo();
-        const graphics = await window.electron.systemInfo.getGraphicsInfo();
-        setCpuInfo(cpu);
-        setGpuInfo(graphics);
-      } catch (error) {
-        console.error('获取静态系统信息时出错:', error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    const getDynamicInfo = async () => {
-      try {
-        const mem = await window.electron.systemInfo.getMemInfo();
-        const network = await window.electron.systemInfo.getNetworkInfo();
-        const load = await window.electron.systemInfo.getCpuCurrentLoad();
-        const speed = await window.electron.systemInfo.getCpuSpeed();
-
-        const currentMemUsage = (mem.used / mem.total) * 100;
-        setMemInfo(mem);
-        setMemUsage(currentMemUsage);
-        setMemUsageHistory((prev) => {
-          const newData = [...prev, currentMemUsage];
-          if (newData.length > 60) {
-            return newData.slice(newData.length - 60);
-          }
-          return newData;
-        });
-
-        if (lastNetworkInfoRef.current) {
-          const currentRx = _.sumBy(network, 'rx_bytes');
-          const lastRx = _.sumBy(lastNetworkInfoRef.current, 'rx_bytes');
-          const currentTx = _.sumBy(network, 'tx_bytes');
-          const lastTx = _.sumBy(lastNetworkInfoRef.current, 'tx_bytes');
-
-          const rxSec = currentRx - lastRx;
-          const txSec = currentTx - lastTx;
-
-          setNetworkSpeed({
-            rxSec: rxSec / 1024 / 1024,
-            txSec: txSec / 1024 / 1024,
-          });
-          setNetworkRxSpeedHistory((prev) => {
-            const newData = [...prev, rxSec / 1024 / 1024]; // in MB/s
-            if (newData.length > 60) {
-              return newData.slice(newData.length - 60);
-            }
-            return newData;
-          });
-          setNetworkTxSpeedHistory((prev) => {
-            const newData = [...prev, txSec / 1024 / 1024]; // in MB/s
-            if (newData.length > 60) {
-              return newData.slice(newData.length - 60);
-            }
-            return newData;
-          });
-        }
-
-        setNetworkInfo(network);
-        setCpuUsage(load.currentLoad);
-        setCpuUsageHistory((prev) => {
-          const newData = [...prev, load.currentLoad];
-          if (newData.length > 60) {
-            return newData.slice(newData.length - 60);
-          }
-          return newData;
-        });
-        // Simulate GPU usage for demonstration
-        if (gpuInfo) {
-          const newUsages: { [key: string]: number } = {};
-          gpuInfo.controllers.forEach((controller) => {
-            const key = controller.model || controller.vendor;
-            newUsages[key] = Math.random() * 100;
-          });
-          setGpuUsages(newUsages);
-
-          setGpuUsageHistories((prevHistories) => {
-            const updatedHistories = { ...prevHistories };
-            Object.keys(newUsages).forEach((key) => {
-              const usage = newUsages[key];
-              const history = updatedHistories[key]
-                ? [...updatedHistories[key], usage]
-                : [usage];
-              if (history.length > 60) {
-                updatedHistories[key] = history.slice(history.length - 60);
-              } else {
-                updatedHistories[key] = history;
-              }
-            });
-            return updatedHistories;
-          });
-        }
-        setCpuSpeed(speed.avg);
-        lastNetworkInfoRef.current = network;
-
-        if (isRecording) {
-          const record = {
-            timestamp: new Date().toISOString(),
-            cpuUsage: load.currentLoad,
-            memUsage: currentMemUsage,
-            ...Object.keys(gpuUsages).reduce(
-              (acc, key) => ({ ...acc, [`gpu_${key}_usage`]: gpuUsages[key] }),
-              {},
-            ),
-            networkRxSpeed: networkSpeed.rxSec,
-            networkTxSpeed: networkSpeed.txSec,
-          };
-          setPerformanceData((prev) => [...prev, record]);
-        }
-      } catch (error) {
-        console.error('获取动态系统信息时出错:', error);
-      }
-    };
-
-    getStaticInfo();
-    getDynamicInfo();
-
-    const interval = setInterval(getDynamicInfo, 1000);
-
-    return () => clearInterval(interval);
-  }, [gpuInfo]);
 
   return (
     <div className="p-6 bg-black text-gray-300 min-h-screen font-sans tech-background">
@@ -266,11 +82,7 @@ function Performance() {
       <div className="flex justify-center space-x-4 mb-8">
         <button
           type="button"
-          onClick={() => {
-            setIsRecording(true);
-            setRecordingStartTime(new Date());
-            setPerformanceData([]);
-          }}
+          onClick={startRecording}
           disabled={isRecording}
           className="px-6 py-2 bg-green-500 text-white font-semibold rounded-lg shadow-md hover:bg-green-600 disabled:bg-gray-500"
         >
@@ -278,9 +90,7 @@ function Performance() {
         </button>
         <button
           type="button"
-          onClick={() => {
-            setIsRecording(false);
-          }}
+          onClick={stopRecording}
           disabled={!isRecording}
           className="px-6 py-2 bg-red-500 text-white font-semibold rounded-lg shadow-md hover:bg-red-600 disabled:bg-gray-500"
         >
