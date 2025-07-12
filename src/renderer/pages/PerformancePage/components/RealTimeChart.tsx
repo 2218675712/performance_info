@@ -36,6 +36,7 @@ function RealTimeChart({ data, color }: RealTimeChartProps) {
         <YAxis tick={{ fill: '#9ca3af' }} />
         <CartesianGrid strokeDasharray="3 3" stroke="#374151" />
         <Tooltip
+          formatter={(value: number) => `${value.toFixed(2)}%`}
           contentStyle={{
             backgroundColor: 'rgba(31, 41, 55, 0.8)',
             borderColor: '#4b5563',

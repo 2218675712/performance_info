@@ -74,6 +74,64 @@ function Performance() {
   const lastNetworkInfoRef = useRef<
     Systeminformation.NetworkStatsData[] | null
   >(null);
+  const [isRecording, setIsRecording] = useState(false);
+  const [performanceData, setPerformanceData] = useState<any[]>([]);
+  const [recordingStartTime, setRecordingStartTime] = useState<Date | null>(null);
+
+  const formatNetworkSpeed = (speedInMB: number) => {
+    if (speedInMB < 1) {
+      return `${(speedInMB * 1024).toFixed(2)} KB/s`;
+    }
+    return `${speedInMB.toFixed(2)} MB/s`;
+  };
+
+  const handleExport = () => {
+    const formatTime = (date: Date) => {
+      return `${date.getFullYear()}-${(date.getMonth() + 1)
+        .toString()
+        .padStart(2, '0')}-${date.getDate().toString().padStart(2, '0')} ${date
+        .getHours()
+        .toString()
+        .padStart(2, '0')}-${date.getMinutes().toString().padStart(2, '0')}-${date
+        .getSeconds()
+        .toString()
+        .padStart(2, '0')}`;
+    };
+
+    const startTime = recordingStartTime ? formatTime(recordingStartTime) : '';
+    const endTime = formatTime(new Date());
+    const deviceName = cpuInfo
+      ? `${cpuInfo.manufacturer} ${cpuInfo.brand}`
+      : 'UnknownDevice';
+    const fileName = `${startTime}-${endTime}-${deviceName}-performance.csv`;
+
+    const csvContent = [
+      Object.keys(performanceData[0]).join(','),
+      ...performanceData.map((row) => {
+        const formattedRow = {
+          ...row,
+          timestamp: formatTime(new Date(row.timestamp)),
+          networkRxSpeed: formatNetworkSpeed(row.networkRxSpeed),
+          networkTxSpeed: formatNetworkSpeed(row.networkTxSpeed),
+        };
+        return Object.values(formattedRow)
+          .map((value) =>
+            typeof value === 'number' ? value.toFixed(2) : value,
+          )
+          .join(',');
+      }),
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', fileName);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   useEffect(() => {
     const getStaticInfo = async () => {
@@ -172,6 +230,21 @@ function Performance() {
         }
         setCpuSpeed(speed.avg);
         lastNetworkInfoRef.current = network;
+
+        if (isRecording) {
+          const record = {
+            timestamp: new Date().toISOString(),
+            cpuUsage: load.currentLoad,
+            memUsage: currentMemUsage,
+            ...Object.keys(gpuUsages).reduce(
+              (acc, key) => ({ ...acc, [`gpu_${key}_usage`]: gpuUsages[key] }),
+              {},
+            ),
+            networkRxSpeed: networkSpeed.rxSec,
+            networkTxSpeed: networkSpeed.txSec,
+          };
+          setPerformanceData((prev) => [...prev, record]);
+        }
       } catch (error) {
         console.error('获取动态系统信息时出错:', error);
       }
@@ -190,6 +263,38 @@ function Performance() {
       <h2 className="text-3xl font-bold mb-8 text-center text-cyan-400 glow">
         系统性能监控
       </h2>
+      <div className="flex justify-center space-x-4 mb-8">
+        <button
+          type="button"
+          onClick={() => {
+            setIsRecording(true);
+            setRecordingStartTime(new Date());
+            setPerformanceData([]);
+          }}
+          disabled={isRecording}
+          className="px-6 py-2 bg-green-500 text-white font-semibold rounded-lg shadow-md hover:bg-green-600 disabled:bg-gray-500"
+        >
+          开始录制
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setIsRecording(false);
+          }}
+          disabled={!isRecording}
+          className="px-6 py-2 bg-red-500 text-white font-semibold rounded-lg shadow-md hover:bg-red-600 disabled:bg-gray-500"
+        >
+          结束录制
+        </button>
+        <button
+          type="button"
+          onClick={handleExport}
+          disabled={isRecording || performanceData.length === 0}
+          className="px-6 py-2 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 disabled:bg-gray-500"
+        >
+          导出
+        </button>
+      </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* CPU Card */}
         <div className="bg-gray-900 bg-opacity-75 p-6 rounded-lg shadow-lg border border-cyan-700">
